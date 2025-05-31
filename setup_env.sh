@@ -1,0 +1,29 @@
+# Flask Configuration
+export FLASK_ENV=development
+export FLASK_DEBUG=True
+export FLASK_HOST=0.0.0.0
+export FLASK_PORT=5000
+export SECRET_KEY=your-secret-key-here
+
+# AI Model Configuration
+export SUMMARIZATION_MODEL=Falconsai/text_summarization
+export SUMMARIZATION_FALLBACK=facebook/bart-large-cnn
+export TTS_MODEL_PRIMARY=tts_models/multilingual/multi-dataset/xtts_v2
+export TTS_MODEL_FALLBACK=tts_models/en/ljspeech/tacotron2-DDC
+
+# Summarization Settings
+export SUMMARY_MAX_LENGTH=100
+export SUMMARY_MIN_LENGTH=30
+export ARTICLES_PER_FEED=5
+
+# Cache Settings
+export AUDIO_CACHE_ENABLED=True
+export CACHE_CLEANUP_HOURS=24
+
+# Performance Settings
+export MODEL_LOADING_TIMEOUT=300
+export NEWS_REFRESH_INTERVAL=300
+
+# API Settings
+export API_RATE_LIMIT="100 per hour"
+

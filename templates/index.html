@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NewsBreeze - Celebrity-Powered Audio News</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .pulse-dot {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .audio-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .loading-spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-lg">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-broadcast-tower text-3xl"></i>
+                    <div>
+                        <h1 class="text-3xl font-bold">NewsBreeze</h1>
+                        <p class="text-sm opacity-90">Celebrity-Powered Audio News Reader</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div id="status-indicator" class="flex items-center space-x-2">
+                        <div class="pulse-dot w-3 h-3 bg-green-400 rounded-full"></div>
+                        <span class="text-sm">AI Models Loading...</span>
+                    </div>
+                    <button id="refresh-btn" class="bg-white bg-opacity-20 hover:bg-opacity-30 px-4 py-2 rounded-lg transition-all">
+                        <i class="fas fa-sync-alt mr-2"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- Voice Selection -->
+        <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4 flex items-center">
+                <i class="fas fa-microphone text-purple-600 mr-2"></i>
+                Choose Your News Narrator
+            </h2>
+            <div id="voice-selection" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <!-- Voice options will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading-state" class="text-center py-12">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <p class="text-gray-600">Loading the latest news...</p>
+        </div>
+
+        <!-- News Articles -->
+        <div id="news-container" class="grid gap-6" style="display: none;">
+            <!-- Articles will be loaded here -->
+        </div>
+
+        <!-- Error State -->
+        <div id="error-state" class="text-center py-12 hidden">
+            <i class="fas fa-exclamation-circle text-red-500 text-4xl mb-4"></i>
+            <p class="text-red-600 text-lg">Failed to load news. Please try again.</p>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white text-center py-6 mt-12">
+        <p>&copy; 2024 NewsBreeze. Powered by AI summarization and voice synthesis.</p>
+    </footer>
+
+    <script>
+        let selectedVoice = 'default';
+        let articles = [];
+
+        // Initialize the app
+        async function init() {
+            await loadVoices();
+            await loadNews();
+            checkStatus();
+        }
+
+        // Load available voices
+        async function loadVoices() {
+            try {
+                const response = await fetch('/api/voices');
+                const voices = await response.json();
+                
+                const voiceContainer = document.getElementById('voice-selection');
+                voiceContainer.innerHTML = '';
+
+                for (const [key, name] of Object.entries(voices)) {
+                    const voiceCard = document.createElement('div');
+                    voiceCard.className = `voice-option cursor-pointer p-4 border-2 rounded-lg transition-all ${key === selectedVoice ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300'}`;
+                    voiceCard.innerHTML = `
+                        <div class="text-center">
+                            <i class="fas fa-user-tie text-2xl mb-2 text-purple-600"></i>
+                            <p class="font-medium">${name}</p>
+                        </div>
+                    `;
+                    voiceCard.addEventListener('click', () => selectVoice(key));
+                    voiceContainer.appendChild(voiceCard);
+                }
+            } catch (error) {
+                console.error('Failed to load voices:', error);
+            }
+        }
+
+        // Select voice
+        function selectVoice(voice) {
+            selectedVoice = voice;
+            document.querySelectorAll('.voice-option').forEach(option => {
+                option.className = option.className.replace('border-purple-500 bg-purple-50', 'border-gray-200');
+            });
+            document.querySelectorAll('.voice-option')[Object.keys({default: '', celebrity1: '', celebrity2: '', celebrity3: ''}).indexOf(voice)].className += ' border-purple-500 bg-purple-50';
+        }
+
+        // Load news articles
+        async function loadNews() {
+            try {
+                document.getElementById('loading-state').style.display = 'block';
+                document.getElementById('news-container').style.display = 'none';
+                document.getElementById('error-state').classList.add('hidden');
+
+                const response = await fetch('/api/news');
+                const data = await response.json();
+
+                if (data.success) {
+                    articles = data.articles;
+                    displayArticles(articles);
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                console.error('Failed to load news:', error);
+                document.getElementById('loading-state').style.display = 'none';
+                document.getElementById('error-state').classList.remove('hidden');
+            }
+        }
+
+        // Display articles
+        function displayArticles(articles) {
+            const container = document.getElementById('news-container');
+            container.innerHTML = '';
+
+            articles.forEach((article, index) => {
+                const articleCard = document.createElement('div');
+                articleCard.className = 'bg-white rounded-xl shadow-md p-6 card-hover';
+                articleCard.innerHTML = `
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex-1">
+                            <h3 class="text-xl font-semibold mb-2 text-gray-800">${article.title}</h3>
+                            <div class="flex items-center space-x-4 text-sm text-gray-500 mb-3">
+                                <span><i class="fas fa-newspaper mr-1"></i>${article.source}</span>
+                                <span><i class="fas fa-clock mr-1"></i>${new Date(article.published).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <h4 class="font-medium text-gray-700 mb-2">AI Summary:</h4>
+                        <p class="text-gray-600 leading-relaxed">${article.ai_summary}</p>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <div class="audio-controls">
+                            <button class="play-btn bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 rounded-lg hover:from-purple-600 hover:to-blue-600 transition-all" data-text="${article.ai_summary}" data-id="${article.id}">
+                                <i class="fas fa-play mr-2"></i>Listen
+                            </button>
+                            <audio class="audio-player hidden" controls data-id="${article.id}"></audio>
+                        </div>
+                        <a href="${article.link}" target="_blank" class="text-blue-600 hover:text-blue-800 transition-colors">
+                            <i class="fas fa-external-link-alt mr-1"></i>Read Full Article
+                        </a>
+                    </div>
+                `;
+                container.appendChild(articleCard);
+            });
+
+            // Add event listeners for play buttons
+            document.querySelectorAll('.play-btn').forEach(btn => {
+                btn.addEventListener('click', () => playAudio(btn));
+            });
+
+            document.getElementById('loading-state').style.display = 'none';
+            document.getElementById('news-container').style.display = 'grid';
+        }
+
+        // Play audio
+        async function playAudio(button) {
+            const text = button.getAttribute('data-text');
+            const articleId = button.getAttribute('data-id');
+            const audioPlayer = document.querySelector(`audio[data-id="${articleId}"]`);
+
+            // Show loading state
+            button.innerHTML = '<div class="loading-spinner"></div>Loading...';
+            button.disabled = true;
+
+            try {
+                const response = await fetch(`/api/audio/${articleId}?voice=${selectedVoice}&text=${encodeURIComponent(text)}`);
+                
+                if (response.ok) {
+                    const audioBlob = await response.blob();
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    
+                    audioPlayer.src = audioUrl;
+                    audioPlayer.classList.remove('hidden');
+                    audioPlayer.play();
+                    
+                    button.innerHTML = '<i class="fas fa-volume-up mr-2"></i>Playing';
+                    
+                    audioPlayer.addEventListener('ended', () => {
+                        button.innerHTML = '<i class="fas fa-play mr-2"></i>Listen';
+                        button.disabled = false;
+                    });
+                } else {
+                    throw new Error('Audio generation failed');
+                }
+            } catch (error) {
+                console.error('Audio playback failed:', error);
+                button.innerHTML = '<i class="fas fa-exclamation-circle mr-2"></i>Error';
+                setTimeout(() => {
+                    button.innerHTML = '<i class="fas fa-play mr-2"></i>Listen';
+                    button.disabled = false;
+                }, 2000);
+            }
+        }
+
+        // Check system status
+        async function checkStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const status = await response.json();
+                
+                const indicator = document.getElementById('status-indicator');
+                if (status.summarizer_loaded && status.tts_loaded) {
+                    indicator.innerHTML = `
+                        <div class="w-3 h-3 bg-green-400 rounded-full"></div>
+                        <span class="text-sm">All Systems Ready</span>
+                    `;
+                } else {
+                    indicator.innerHTML = `
+                        <div class="pulse-dot w-3 h-3 bg-yellow-400 rounded-full"></div>
+                        <span class="text-sm">Loading AI Models...</span>
+                    `;
+                    // Check again in 5 seconds
+                    setTimeout(checkStatus, 5000);
+                }
+            } catch (error) {
+                console.error('Status check failed:', error);
+            }
+        }
+
+        // Refresh button
+        document.getElementById('refresh-btn').addEventListener('click', loadNews);
+
+        // Initialize app when page loads
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html> 
